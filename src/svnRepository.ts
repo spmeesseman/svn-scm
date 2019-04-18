@@ -374,8 +374,9 @@ export class Repository {
 
   public async newBranch(
     name: string,
-    commitMessage: string = "Created new branch"
-  ) {
+    commitMessage: string = "Created new branch",
+    switchToBranch?: boolean
+    ) {
     const repoUrl = await this.getRepoUrl();
     const newBranch = repoUrl + "/" + name;
     const info = await this.getInfo();
@@ -388,7 +389,9 @@ export class Repository {
       commitMessage
     ]);
 
-    await this.switchBranch(name);
+    if (switchToBranch) {
+      await this.switchBranch(name);
+    }
 
     return true;
   }

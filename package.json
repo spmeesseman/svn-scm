@@ -410,6 +410,16 @@
         "command": "svn.deleteUnversioned",
         "title": "Delete selected files",
         "category": "SVN"
+      },
+      {
+        "command": "svn.brach",
+        "title": "Branch...",
+        "when": "false"
+      },
+      {
+        "command": "svn.tag",
+        "title": "Tag...",
+        "when": "false"
       }
     ],
     "menus": {
@@ -521,6 +531,14 @@
         {
           "command": "svn.deleteUnversioned",
           "when": "false"
+        },
+        {
+          "command": "svn.brach",
+          "when": "config.svn.enabled && svnOpenRepositoryCount != 0"
+        },
+        {
+          "command": "svn.tag",
+          "when": "config.svn.enabled && svnOpenRepositoryCount != 0"
         },
         {
           "command": "svn.repolog.addrepolike",
