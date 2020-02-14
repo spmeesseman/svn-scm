@@ -8,9 +8,13 @@ import {
   IFileStatus,
   ISvnInfo,
   ISvnLogEntry,
-  Status
+  Status,
+  SvnDepth,
+  ISvnPathChange,
+  ISvnPath
 } from "./common/types";
 import { sequentialize } from "./decorators";
+import * as encodeUtil from "./encoding";
 import { exists, writeFile } from "./fs";
 import { getBranchName } from "./helpers/branch";
 import { configuration } from "./helpers/configuration";
@@ -19,10 +23,19 @@ import { parseSvnList } from "./listParser";
 import { parseSvnLog } from "./logParser";
 import { parseStatusXml } from "./statusParser";
 import { Svn } from "./svn";
-import { fixPathSeparator, fixPegRevision, unwrap } from "./util";
+import {
+  fixPathSeparator,
+  fixPegRevision,
+  isDescendant,
+  normalizePath,
+  unwrap
+} from "./util";
+import { parseDiffXml } from "./diffParser";
 
 export class Repository {
-  private _infoCache: { [index: string]: ISvnInfo } = {};
+  private _infoCache: {
+    [index: string]: ISvnInfo;
+  } = {};
   private _info?: ISvnInfo;
 
   public username?: string;
@@ -46,7 +59,12 @@ export class Repository {
   }
 
   public async updateInfo() {
-    const result = await this.exec(["info", "--xml", fixPegRevision(this.root)]);
+    const result = await this.exec([
+      "info",
+      "--xml",
+      fixPegRevision(this.workspaceRoot ? this.workspaceRoot : this.root)
+    ]);
+
     this._info = await parseInfoXml(result.stdout);
   }
 
@@ -129,7 +147,8 @@ export class Repository {
   public async getInfo(
     file: string = "",
     revision?: string,
-    skipCache: boolean = false
+    skipCache: boolean = false,
+    isUrl: boolean = false
   ): Promise<ISvnInfo> {
     if (!skipCache && this._infoCache[file]) {
       return this._infoCache[file];
@@ -142,7 +161,9 @@ export class Repository {
     }
 
     if (file) {
-      file = fixPathSeparator(file);
+      if (!isUrl) {
+        file = fixPathSeparator(file);
+      }
       args.push(file);
     }
 
@@ -158,26 +179,123 @@ export class Repository {
     return this._infoCache[file];
   }
 
-  public async show(
-    file: string | Uri,
-    revision?: string,
-    options: ICpOptions = {}
-  ): Promise<string> {
-    const args = ["cat"];
-    let target: string;
-    if (file instanceof Uri) {
-      target = file.toString(true);
-    } else {
-      target = file;
+  public async getChanges(): Promise<ISvnPathChange[]> {
+    // First, check to see if this branch was copied from somewhere.
+    let args = [
+      "log",
+      "-r1:HEAD",
+      "--stop-on-copy",
+      "--xml",
+      "--with-all-revprops",
+      "--verbose"
+    ];
+    let result = await this.exec(args);
+    const entries = await parseSvnLog(result.stdout);
+
+    if (entries.length === 0 || entries[0].paths.length === 0) {
+      return [];
     }
+
+    const copyCommitPath = entries[0].paths[0];
+
+    if (
+      typeof copyCommitPath.copyfromRev === "undefined" ||
+      typeof copyCommitPath.copyfromPath === "undefined" ||
+      typeof copyCommitPath._ === "undefined" ||
+      copyCommitPath.copyfromRev.trim().length === 0 ||
+      copyCommitPath.copyfromPath.trim().length === 0 ||
+      copyCommitPath._.trim().length === 0
+    ) {
+      return [];
+    }
+
+    const copyFromPath = copyCommitPath.copyfromPath;
+    const copyFromRev = copyCommitPath.copyfromRev;
+    const copyToPath = copyCommitPath._;
+    const copyFromUrl = this.info.repository.root + copyFromPath;
+    const copyToUrl = this.info.repository.root + copyToPath;
+
+    // Get last merge revision from path that this branch was copied from.
+    args = ["mergeinfo", "--show-revs=merged", copyFromUrl, copyToUrl];
+    result = await this.exec(args);
+    const revisions = result.stdout.trim().split("\n");
+    let latestMergedRevision: string = "";
+
+    if (revisions.length) {
+      latestMergedRevision = revisions[revisions.length - 1];
+    }
+
+    if (latestMergedRevision.trim().length === 0) {
+      latestMergedRevision = copyFromRev;
+    }
+
+    // Now, diff the source branch at the latest merged revision with the current branch's revision
+    const info = await this.getInfo(copyToUrl, undefined, true, true);
+    args = [
+      "diff",
+      `${copyFromUrl}@${latestMergedRevision}`,
+      copyToUrl,
+      "--ignore-properties",
+      "--xml",
+      "--summarize"
+    ];
+    result = await this.exec(args);
+    let paths: ISvnPath[];
+    try {
+      paths = await parseDiffXml(result.stdout);
+    } catch (err) {
+      return [];
+    }
+
+    const changes: ISvnPathChange[] = [];
+
+    // Now, we have all the files that this branch changed.
+    for (const path of paths) {
+      changes.push({
+        oldPath: Uri.parse(path._),
+        newPath: Uri.parse(path._.replace(copyFromUrl, copyToUrl)),
+        oldRevision: latestMergedRevision.replace("r", ""),
+        newRevision: info.revision,
+        item: path.item,
+        props: path.props,
+        kind: path.kind,
+        repo: Uri.parse(this.info.repository.root)
+      });
+    }
+
+    return changes;
+  }
+
+  public async show(file: string | Uri, revision?: string): Promise<string> {
+    const args = ["cat"];
+
+    let uri: Uri;
+    let filePath: string;
+
+    if (file instanceof Uri) {
+      uri = file;
+      filePath = file.toString(true);
+    } else {
+      uri = Uri.file(file);
+      filePath = file;
+    }
+
+    const isChild =
+      uri.scheme === "file" && isDescendant(this.workspaceRoot, uri.fsPath);
+
+    let target: string = filePath;
+
+    if (isChild) {
+      target = this.removeAbsolutePath(target);
+    }
+
     if (revision) {
       args.push("-r", revision);
       if (
-        typeof file === "string" &&
+        isChild &&
         !["BASE", "COMMITTED", "PREV"].includes(revision.toUpperCase())
       ) {
         const info = await this.getInfo();
-        target = this.removeAbsolutePath(target);
         target = info.url + "/" + target.replace(/\\/g, "/");
         // TODO move to SvnRI
       }
@@ -185,13 +303,51 @@ export class Repository {
 
     args.push(target);
 
-    let encoding = "utf8";
-    if (typeof file === "string") {
-      const uri = Uri.file(file);
-      file = this.removeAbsolutePath(file);
-      encoding = workspace
-        .getConfiguration("files", uri)
-        .get<string>("encoding", encoding);
+    /**
+     * ENCODE DETECTION
+     * if TextDocuments exists and autoGuessEncoding is true,
+     * try detect current encoding of content
+     */
+    const configs = workspace.getConfiguration("files", uri);
+
+    let encoding: string | undefined | null = configs.get("encoding");
+    let autoGuessEncoding: boolean = configs.get<boolean>(
+      "autoGuessEncoding",
+      false
+    );
+
+    const textDocument = workspace.textDocuments.find(
+      doc => normalizePath(doc.uri.fsPath) === normalizePath(filePath)
+    );
+
+    if (textDocument) {
+      // Load encoding by languageId
+      const languageConfigs = workspace.getConfiguration(
+        `[${textDocument.languageId}]`,
+        uri
+      );
+      if (languageConfigs["files.encoding"] !== undefined) {
+        encoding = languageConfigs["files.encoding"];
+      }
+      if (languageConfigs["files.autoGuessEncoding"] !== undefined) {
+        autoGuessEncoding = languageConfigs["files.autoGuessEncoding"];
+      }
+
+      if (autoGuessEncoding) {
+        // The `getText` return a `utf-8` string
+        const buffer = Buffer.from(textDocument.getText(), "utf-8");
+        const detectedEncoding = encodeUtil.detectEncoding(buffer);
+        if (detectedEncoding) {
+          encoding = detectedEncoding;
+        }
+      }
+    } else {
+      const svnEncoding: string | undefined = configuration.get<string>(
+        "default.encoding"
+      );
+      if (svnEncoding) {
+        encoding = svnEncoding;
+      }
     }
 
     const result = await this.exec(args, { encoding });
@@ -208,7 +364,7 @@ export class Repository {
       args.push("--force-log");
     }
 
-    let tmpFile: tmp.SynchrounousResult | undefined;
+    let tmpFile: tmp.FileResult | undefined;
 
     /**
      * For message with line break or non:
@@ -243,7 +399,15 @@ export class Repository {
 
     const matches = result.stdout.match(/Committed revision (.*)\./i);
     if (matches && matches[0]) {
-      return matches[0];
+      const sendedFiles = (
+        result.stdout.match(/(Sending|Adding|Deleting)\s+/g) || []
+      ).length;
+
+      const filesMessage = `${sendedFiles} ${
+        sendedFiles === 1 ? "file" : "files"
+      } commited`;
+
+      return `${filesMessage}: revision ${matches[1]}.`;
     }
 
     return result.stdout;
@@ -316,7 +480,7 @@ export class Repository {
       promises.push(
         new Promise<string[]>(async resolve => {
           try {
-            const trunkExists = await this.exec([
+            await this.exec([
               "ls",
               repoUrl + "/" + trunkLayout,
               "--depth",
@@ -380,13 +544,8 @@ export class Repository {
     const newBranch = repoUrl + "/" + name;
     const info = await this.getInfo();
     const currentBranch = info.url;
-    const result = await this.exec([
-      "copy",
-      currentBranch,
-      newBranch,
-      "-m",
-      commitMessage
-    ]);
+
+    await this.exec(["copy", currentBranch, newBranch, "-m", commitMessage]);
 
     await this.switchBranch(name);
 
@@ -405,9 +564,9 @@ export class Repository {
     return true;
   }
 
-  public async revert(files: string[]) {
+  public async revert(files: string[], depth: keyof typeof SvnDepth) {
     files = files.map(file => this.removeAbsolutePath(file));
-    const result = await this.exec(["revert", ...files]);
+    const result = await this.exec(["revert", "--depth", depth, ...files]);
     return result.stdout;
   }
 
@@ -453,13 +612,18 @@ export class Repository {
 
   public async patch(files: string[]) {
     files = files.map(file => this.removeAbsolutePath(file));
-    const result = await this.exec(["diff", ...files]);
+    const result = await this.exec(["diff", "--internal-diff", ...files]);
     const message = result.stdout;
     return message;
   }
 
   public async patchChangelist(changelistName: string) {
-    const result = await this.exec(["diff", "--changelist", changelistName]);
+    const result = await this.exec([
+      "diff",
+      "--internal-diff",
+      "--changelist",
+      changelistName
+    ]);
     const message = result.stdout;
     return message;
   }
@@ -500,6 +664,18 @@ export class Repository {
     return result.stdout;
   }
 
+  public async plainLogByRevision(revision: number) {
+    const result = await this.exec(["log", "-r", revision.toString()]);
+
+    return result.stdout;
+  }
+
+  public async plainLogByText(search: string) {
+    const result = await this.exec(["log", "--search", search]);
+
+    return result.stdout;
+  }
+
   public async log(
     rfrom: string,
     rto: string,
@@ -515,7 +691,9 @@ export class Repository {
       "-v"
     ];
     if (target !== undefined) {
-      args.push(fixPegRevision(target instanceof Uri ? target.toString(true) : target));
+      args.push(
+        fixPegRevision(target instanceof Uri ? target.toString(true) : target)
+      );
     }
     const result = await this.exec(args);
 
@@ -537,6 +715,14 @@ export class Repository {
 
   public async cleanup() {
     const result = await this.exec(["cleanup"]);
+
+    return result.stdout;
+  }
+
+  public async removeUnversioned() {
+    const result = await this.exec(["cleanup", "--remove-unversioned"]);
+
+    this.svn.logOutput(result.stdout);
 
     return result.stdout;
   }

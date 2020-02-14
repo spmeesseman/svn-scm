@@ -11,8 +11,8 @@ import {
   Uri,
   window
 } from "vscode";
-import { ISvnLogEntry, Status } from "../common/types";
-import { Model } from "../model";
+import { ISvnLogEntry } from "../common/types";
+import { SourceControlManager } from "../source_control_manager";
 import { tempdir } from "../tempFiles";
 import { dispose, unwrap } from "../util";
 import {
@@ -29,7 +29,8 @@ import {
   LogTreeItemKind,
   openDiff,
   openFileRemote,
-  transform
+  transform,
+  getCommitDescription
 } from "./common";
 
 export class ItemLogProvider
@@ -43,12 +44,18 @@ export class ItemLogProvider
   private currentItem?: ICachedLog;
   private _dispose: Disposable[] = [];
 
-  constructor(private model: Model) {
+  constructor(private sourceControlManager: SourceControlManager) {
     window.onDidChangeActiveTextEditor(this.editorChanged, this);
     this._dispose.push(
       commands.registerCommand(
         "svn.itemlog.copymsg",
         async (item: ILogTreeItem) => copyCommitToClipboard("msg", item)
+      )
+    );
+    this._dispose.push(
+      commands.registerCommand(
+        "svn.itemlog.copyrevision",
+        async (item: ILogTreeItem) => copyCommitToClipboard("revision", item)
       )
     );
     this._dispose.push(
@@ -127,8 +134,8 @@ export class ItemLogProvider
         if (uri.path.startsWith(tempdir)) {
           return; // do not refresh if diff was called
         }
-        const repo = this.model.getRepository(uri);
-        if (repo !== undefined) {
+        const repo = this.sourceControlManager.getRepository(uri);
+        if (repo !== null) {
           try {
             const info = await repo.getInfo(uri.fsPath);
             this.currentItem = {
@@ -154,9 +161,9 @@ export class ItemLogProvider
   public async getTreeItem(element: ILogTreeItem): Promise<TreeItem> {
     let ti: TreeItem;
     if (element.kind === LogTreeItemKind.Commit) {
-      const cached = unwrap(this.currentItem);
       const commit = element.data as ISvnLogEntry;
       ti = new TreeItem(getCommitLabel(commit), TreeItemCollapsibleState.None);
+      ti.description = getCommitDescription(commit);
       ti.iconPath = getCommitIcon(commit.author);
       ti.tooltip = getCommitToolTip(commit);
       ti.contextValue = "diffable";
@@ -183,6 +190,7 @@ export class ItemLogProvider
       const fname = path.basename(this.currentItem.svnTarget.fsPath);
       const ti = new TreeItem(fname, TreeItemCollapsibleState.Expanded);
       ti.tooltip = path.dirname(this.currentItem.svnTarget.fsPath);
+      ti.description = path.dirname(this.currentItem.svnTarget.fsPath);
       ti.iconPath = getIconObject("icon-history");
       const item = {
         kind: LogTreeItemKind.TItem,

@@ -11,23 +11,23 @@ import { registerCommands } from "./commands";
 import { ConstructorPolicy } from "./common/types";
 import { CheckActiveEditor } from "./contexts/checkActiveEditor";
 import { OpenRepositoryCount } from "./contexts/openRepositoryCount";
-import SvnDecorations from "./decorations/svnDecorations";
 import { configuration } from "./helpers/configuration";
 import { ItemLogProvider } from "./historyView/itemLogProvider";
 import { RepoLogProvider } from "./historyView/repoLogProvider";
-import { Model } from "./model";
+import * as messages from "./messages";
+import { SourceControlManager } from "./source_control_manager";
 import { Svn } from "./svn";
 import { SvnContentProvider } from "./svnContentProvider";
 import { SvnFinder } from "./svnFinder";
 import SvnProvider from "./treeView/dataProviders/svnProvider";
-import {
-  hasSupportToDecorationProvider,
-  hasSupportToRegisterDiffCommand,
-  toDisposable
-} from "./util";
+import { toDisposable } from "./util";
+import { BranchChangesProvider } from "./historyView/branchChangesProvider";
+import { IsSvn19orGreater } from "./contexts/isSvn19orGreater";
+import { IsSvn18orGreater } from "./contexts/isSvn18orGreater";
+import { tempSvnFs } from "./temp_svn_fs";
 
 async function init(
-  context: ExtensionContext,
+  _context: ExtensionContext,
   outputChannel: OutputChannel,
   disposables: Disposable[]
 ) {
@@ -36,39 +36,36 @@ async function init(
 
   const info = await svnFinder.findSvn(pathHint);
   const svn = new Svn({ svnPath: info.path, version: info.version });
-  const model = await new Model(svn, ConstructorPolicy.Async);
-  const contentProvider = new SvnContentProvider(model);
+  const sourceControlManager = await new SourceControlManager(
+    svn,
+    ConstructorPolicy.Async
+  );
+  const contentProvider = new SvnContentProvider(sourceControlManager);
 
-  registerCommands(model, disposables);
+  registerCommands(sourceControlManager, disposables);
 
-  disposables.push(model, contentProvider);
+  disposables.push(sourceControlManager, contentProvider, tempSvnFs);
 
-  const svnProvider = new SvnProvider(model);
+  const svnProvider = new SvnProvider(sourceControlManager);
 
   window.registerTreeDataProvider("svn", svnProvider);
 
-  const repoLogProvider = new RepoLogProvider(model);
+  const repoLogProvider = new RepoLogProvider(sourceControlManager);
   disposables.push(repoLogProvider);
   window.registerTreeDataProvider("repolog", repoLogProvider);
 
-  const itemLogProvider = new ItemLogProvider(model);
+  const itemLogProvider = new ItemLogProvider(sourceControlManager);
   disposables.push(itemLogProvider);
   window.registerTreeDataProvider("itemlog", itemLogProvider);
 
-  disposables.push(new CheckActiveEditor(model));
-  disposables.push(new OpenRepositoryCount(model));
+  const branchChangesProvider = new BranchChangesProvider(sourceControlManager);
+  disposables.push(branchChangesProvider);
+  window.registerTreeDataProvider("branchchanges", branchChangesProvider);
 
-  // First, check the vscode has support to DecorationProvider
-  if (hasSupportToDecorationProvider()) {
-    const decoration = new SvnDecorations(model);
-    disposables.push(decoration);
-  }
-
-  commands.executeCommand(
-    "setContext",
-    "svnHasSupportToRegisterDiffCommand",
-    hasSupportToRegisterDiffCommand() ? "1" : "0"
-  );
+  disposables.push(new CheckActiveEditor(sourceControlManager));
+  disposables.push(new OpenRepositoryCount(sourceControlManager));
+  disposables.push(new IsSvn18orGreater(info.version));
+  disposables.push(new IsSvn19orGreater(info.version));
 
   outputChannel.appendLine(`Using svn "${info.version}" from "${info.path}"`);
 
@@ -77,6 +74,7 @@ async function init(
   disposables.push(
     toDisposable(() => svn.onOutput.removeListener("log", onOutput))
   );
+  disposables.push(toDisposable(messages.dispose));
 }
 
 async function _activate(context: ExtensionContext, disposables: Disposable[]) {
@@ -170,6 +168,6 @@ export async function activate(context: ExtensionContext) {
 }
 
 // this method is called when your extension is deactivated
-/* tslint:disable:no-empty */
+// eslint-disable-next-line @typescript-eslint/no-empty-function
 function deactivate() {}
 exports.deactivate = deactivate;

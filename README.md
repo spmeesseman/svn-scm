@@ -4,14 +4,13 @@
 [![Installs](https://vsmarketplacebadge.apphb.com/installs-short/johnstoncode.svn-scm.svg)](https://marketplace.visualstudio.com/items?itemName=johnstoncode.svn-scm)
 [![Ratings](https://vsmarketplacebadge.apphb.com/rating-short/johnstoncode.svn-scm.svg)](https://marketplace.visualstudio.com/items?itemName=johnstoncode.svn-scm)
 
-[![Build Status](https://dev.azure.com/johnstoncode/Svn-scm/_apis/build/status/svn-scm?branchName=master)](https://dev.azure.com/johnstoncode/Svn-scm/_build/latest?definitionId=1&branchName=master)
+[![Build Status](https://img.shields.io/github/workflow/status/JohnstonCode/svn-scm/build.svg)](https://github.com/JohnstonCode/svn-scm/actions)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 
 [![Dependencies Status](https://david-dm.org/JohnstonCode/svn-scm/status.svg)](https://david-dm.org/JohnstonCode/svn-scm)
 [![DevDependencies Status](https://david-dm.org/JohnstonCode/svn-scm/dev-status.svg)](https://david-dm.org/JohnstonCode/svn-scm?type=dev)
 [![Greenkeeper badge](https://badges.greenkeeper.io/JohnstonCode/svn-scm.svg)](https://greenkeeper.io/)
 
-[![codecov](https://codecov.io/gh/JohnstonCode/svn-scm/branch/master/graph/badge.svg)](https://codecov.io/gh/JohnstonCode/svn-scm)
 [![Known Vulnerabilities](https://snyk.io/test/github/JohnstonCode/svn-scm/badge.svg)](https://snyk.io/test/github/JohnstonCode/svn-scm)
 
 [![CodeFactor](https://www.codefactor.io/repository/github/johnstoncode/svn-scm/badge)](https://www.codefactor.io/repository/github/johnstoncode/svn-scm)
@@ -61,66 +60,122 @@ If you use [TortoiseSVN](https://tortoisesvn.net/), make sure the option
 
 Please use a dedicated extension like [blamer-vs](https://marketplace.visualstudio.com/items?itemName=beaugust.blamer-vs)
 
-## Experimental
+## Settings
+Here are all of the extension settings with their default values. To change any of these, add the relevant Config key and value to your VSCode settings.json file. Alternatively search for the config key in the settings UI to change its value.
 
-### * SVN Status in File Explorer (See #34)
-How to enable:
-* Open the file: `<vscode path>\resources\app\product.json`
-* Find `extensionAllowedProposedApi`
-* Append `"johnstoncode.svn-scm"` in the array
+<!--begin-settings-->
+```js
+{
+  // Whether auto refreshing is enabled
+  "svn.autorefresh": true,
 
-Example:
-```json
-// FROM
-{
-  "extensionAllowedProposedApi": [
-    "ms-vsliveshare.vsliveshare"
-  ]
-}
-// TO
-{
-  "extensionAllowedProposedApi": [
-    "ms-vsliveshare.vsliveshare", "johnstoncode.svn-scm"
-  ]
+  // Set file to status resolved after fix conflicts
+  "svn.conflicts.autoResolve": null,
+
+  // Encoding of svn output if the output is not utf-8. When this parameter is null, the encoding is automatically detected. Example: 'windows-1252'.
+  "svn.default.encoding": null,
+
+  // The default location to checkout a svn repository.
+  "svn.defaultCheckoutDirectory": null,
+
+  // When a file is deleted, what SVN should do? `none` - Do nothing, `prompt` - Ask the action, `remove` - automatically remove from SVN
+  "svn.delete.actionForDeletedFiles": "prompt"  // values: ["none","prompt","remove"],
+
+  // Ignored files/rules for `svn.delete.actionForDeletedFiles`(Ex.: file.txt or **/*.txt)
+  "svn.delete.ignoredRulesForDeletedFiles": [],
+
+  // Controls whether to automatically detect svn externals.
+  "svn.detectExternals": true,
+
+  // Controls whether to automatically detect svn on ignored folders.
+  "svn.detectIgnored": true,
+
+  // Show diff changes using latest revision in the repository. Set false to use latest revision in local folder
+  "svn.diff.withHead": true,
+
+  // Whether svn is enabled
+  "svn.enabled": true,
+
+  // Use garavatar icons in log viewers
+  "svn.gravatars.enabled": true,
+
+  // Ignores the warning when SVN is missing
+  "svn.ignoreMissingSvnWarning": null,
+
+  // List of SVN repositories to ignore.
+  "svn.ignoreRepositories": null,
+
+  // Ignores the warning when working copy is too old
+  "svn.ignoreWorkingCopyIsTooOld": null,
+
+  // Regex to detect path for 'branches' in SVN URL, 'null' to disable. Subpath use 'branches/[^/]+/([^/]+)(/.*)?' (Ex.: 'branches/...', 'versions/...')
+  "svn.layout.branchesRegex": "branches/([^/]+)(/.*)?",
+
+  // Regex group position for name of branch
+  "svn.layout.branchesRegexName": 1,
+
+  // Set true to show 'branches/<name>' and false to show only '<name>'
+  "svn.layout.showFullName": true,
+
+  // Regex group position for name of tag
+  "svn.layout.tagRegexName": 1,
+
+  // Regex to detect path for 'tags' in SVN URL, 'null' to disable. Subpath use 'tags/[^/]+/([^/]+)(/.*)?'. (Ex.: 'tags/...', 'stamps/...')
+  "svn.layout.tagsRegex": "tags/([^/]+)(/.*)?",
+
+  // Regex to detect path for 'trunk' in SVN URL, 'null' to disable. (Ex.: '(trunk)', '(main)')
+  "svn.layout.trunkRegex": "(trunk)(/.*)?",
+
+  // Regex group position for name of trunk
+  "svn.layout.trunkRegexName": 1,
+
+  // Number of commit messages to log
+  "svn.log.length": 50,
+
+  // Maximum depth to find subfolders using SVN
+  "svn.multipleFolders.depth": 4,
+
+  // Allow to find subfolders using SVN
+  "svn.multipleFolders.enabled": null,
+
+  // Folders to ignore using SVN
+  "svn.multipleFolders.ignore": ["**/.git","**/.hg","**/vendor","**/node_modules"],
+
+  // Path to the svn executable
+  "svn.path": null,
+
+  // Refresh remote changes on refresh command
+  "svn.refresh.remoteChanges": null,
+
+  // Set the interval in seconds to check changed files on remote repository and show in statusbar. 0 to disable
+  "svn.remoteChanges.checkFrequency": 300,
+
+  // Show the output window when the extension starts
+  "svn.showOutput": null,
+
+  // Show the update message when update is run
+  "svn.showUpdateMessage": true,
+
+  // Set left click functionality on changes resource state
+  "svn.sourceControl.changesLeftClick": "open diff"  // values: ["open","open diff"],
+
+  // Combine the svn external in the main if is from the same server.
+  "svn.sourceControl.combineExternalIfSameServer": null,
+
+  // Allow to count unversioned files in status count
+  "svn.sourceControl.countUnversioned": true,
+
+  // Hide unversioned files in Source Control UI
+  "svn.sourceControl.hideUnversioned": null,
+
+  // Changelists to ignore on commit
+  "svn.sourceControl.ignoreOnCommit": ["ignore-on-commit"],
+
+  // Changelists to ignore on status count
+  "svn.sourceControl.ignoreOnStatusCount": ["ignore-on-commit"],
+
+  // Set to ignore externals definitions on update (add --ignore-externals)
+  "svn.update.ignoreExternals": true
 }
 ```
-
-## Settings
-
-|Config|Description|Default|
-|-|-|-|
-|`svn.enabled`|Whether svn is enabled|`true`|
-|`svn.autorefresh`|Whether auto refreshing is enabled|`true`|
-|`svn.decorations.enabled`|Controls if SVN contributes colors and badges to the explorer and the open (VSCode \>= 1.18 with proposed-api)|`true`|
-|`svn.path`|Path to the svn executable|`null`|
-|`svn.defaultCheckoutDirectory`|The default location to checkout a svn repository.|`null`|
-|`svn.ignoreRepositories`|List of SVN repositories to ignore.|`null`|
-|`svn.ignoreMissingSvnWarning`|Ignores the warning when SVN is missing|`false`|
-|`svn.ignoreWorkingCopyIsTooOld`|Ignores the warning when working copy is too old|`false`|
-|`svn.diff.withHead`|Show diff changes using latest revision in the repository. Set false to use latest revision in local folder|`true`|
-|`svn.layout.trunkRegex`|Regex to detect path for 'trunk' in SVN URL, 'null' to disable. (Ex.: '(trunk)', '(main)')|`"(trunk)(/.*)?"`|
-|`svn.layout.trunkRegexName`|Regex group position for name of trunk|`1`|
-|`svn.layout.branchesRegex`|Regex to detect path for 'branches' in SVN URL, 'null' to disable. Subpath use 'branches/[^/]+/([^/]+)(/.\*)?' (Ex.: 'branches/...', 'versions/...')|`"branches/([^/]+)(/.*)?"`|
-|`svn.layout.branchesRegexName`|Regex group position for name of branch|`1`|
-|`svn.layout.tagsRegex`|Regex to detect path for 'tags' in SVN URL, 'null' to disable. Subpath use 'tags/[^/]+/([^/]+)(/.\*)?'. (Ex.: 'tags/...', 'stamps/...')|`"tags/([^/]+)(/.*)?"`|
-|`svn.layout.tagRegexName`|Regex group position for name of tag|`1`|
-|`svn.layout.showFullName`|Set true to show 'branches/\<name\>' and false to show only '\<name\>'|`true`|
-|`svn.multipleFolders.enabled`|Allow to find subfolders using SVN|`false`|
-|`svn.multipleFolders.depth`|Maximum depth to find subfolders using SVN|`4`|
-|`svn.multipleFolders.ignore`|Folders to ignore using SVN|`["**/.git","**/.hg","**/vendor","**/node_modules"]`|
-|`svn.sourceControl.ignoreOnCommit`|Changelists to ignore on commit|`["ignore-on-commit"]`|
-|`svn.sourceControl.ignoreOnStatusCount`|Changelists to ignore on status count|`["ignore-on-commit"]`|
-|`svn.detectExternals`|Controls whether to automatically detect svn externals.|`true`|
-|`svn.sourceControl.combineExternalIfSameServer`|Combine the svn external in the main if is from the same server.|`false`|
-|`svn.sourceControl.countUnversioned`|Allow to count unversioned files in status count|`true`|
-|`svn.log.length`|Number of commit messages to log|`50`|
-|`svn.showOutput`|Show the output window when the extension starts|`false`|
-|`svn.conflicts.autoResolve`|Set file to status resolved after fix conflictss|`false`|
-|`svn.update.ignoreExternals`|Set to ignore externals definitions on update (add --ignore-externals)|`true`|
-|`svn.delete.actionForDeletedFiles`|When a file is deleted, what SVN should do? `none` - Do nothing, `prompt` - Ask the action, `remove` - automatically remove from SVN|`"prompt"`|
-|`svn.delete.ignoredRulesForDeletedFiles`|Ignored files/rules for `svn.delete.actionForDeletedFiles`(Ex.: file.txt or \*\*/\*.txt)|`[]`|
-|`svn.default.encoding`|Encoding of svn output if the output is not utf-8. When this parameter is null, the encoding is automatically detected. Example: 'windows-1252'.|`null`|
-|`svn.showUpdateMessage`|Show the update message when update is run|`true`|
-|`svn.remoteChanges.checkFrequency`|Set the interval in seconds to check changed files on remote repository and show in statusbar. 0 to disable|`300`|
-|`svn.sourceControl.hideUnversioned`|Hide unversioned files in Source Control UI|`false`|
-|`svn.refresh.remoteChanges`|Refresh remote changes on refresh command|`false`|
+<!--end-settings-->

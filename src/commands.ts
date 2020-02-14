@@ -11,7 +11,7 @@ import { CommitWithMessage } from "./commands/commitWithMessage";
 import { DeleteUnversioned } from "./commands/deleteUnversioned";
 import { FileOpen } from "./commands/fileOpen";
 import { FinishCheckout } from "./commands/finishCheckout";
-import { GetModel } from "./commands/getModel";
+import { GetSourceControlManager } from "./commands/get_source_control_manager";
 import { Log } from "./commands/log";
 import { OpenChangeBase } from "./commands/openChangeBase";
 import { OpenChangeHead } from "./commands/openChangeHead";
@@ -23,12 +23,14 @@ import { OpenResourceHead } from "./commands/openResourceHead";
 import { Patch } from "./commands/patch";
 import { PatchAll } from "./commands/patchAll";
 import { PatchChangeList } from "./commands/patchChangeList";
+import { PickCommitMessage } from "./commands/pickCommitMessage";
 import { PromptAuth } from "./commands/promptAuth";
 import { PromptRemove } from "./commands/promptRemove";
 import { PullIncommingChange } from "./commands/pullIncomingChange";
 import { Refresh } from "./commands/refresh";
 import { RefreshRemoteChanges } from "./commands/refreshRemoteChanges";
 import { Remove } from "./commands/remove";
+import { RemoveUnversioned } from "./commands/removeUnversioned";
 import { RenameExplorer } from "./commands/renameExplorer";
 import { Resolve } from "./commands/resolve";
 import { ResolveAll } from "./commands/resolveAll";
@@ -36,14 +38,19 @@ import { Resolved } from "./commands/resolved";
 import { Revert } from "./commands/revert";
 import { RevertAll } from "./commands/revertAll";
 import { RevertChange } from "./commands/revertChange";
-import { RevertSelectedRanges } from "./commands/revertSelectedRanges";
+import { RevertExplorer } from "./commands/revertExplorer";
 import { SwitchBranch } from "./commands/switchBranch";
 import { Update } from "./commands/update";
 import { Upgrade } from "./commands/upgrade";
-import { Model } from "./model";
+import { SourceControlManager } from "./source_control_manager";
+import { SearchLogByRevision } from "./commands/search_log_by_revision";
+import { SearchLogByText } from "./commands/search_log_by_text";
 
-export function registerCommands(model: Model, disposables: Disposable[]) {
-  disposables.push(new GetModel(model));
+export function registerCommands(
+  sourceControlManager: SourceControlManager,
+  disposables: Disposable[]
+) {
+  disposables.push(new GetSourceControlManager(sourceControlManager));
   disposables.push(new FileOpen());
   disposables.push(new OpenFile());
   disposables.push(new PromptAuth());
@@ -70,12 +77,12 @@ export function registerCommands(model: Model, disposables: Disposable[]) {
   disposables.push(new RevertChange());
   disposables.push(new Close());
   disposables.push(new Cleanup());
+  disposables.push(new RemoveUnversioned());
   disposables.push(new FinishCheckout());
   disposables.push(new AddToIgnoreSCM());
   disposables.push(new AddToIgnoreExplorer());
   disposables.push(new RenameExplorer());
   disposables.push(new Upgrade());
-  disposables.push(new RevertSelectedRanges());
   disposables.push(new OpenChangePrev());
   disposables.push(new PromptRemove());
   disposables.push(new Checkout());
@@ -84,4 +91,8 @@ export function registerCommands(model: Model, disposables: Disposable[]) {
   disposables.push(new OpenChangeHead());
   disposables.push(new OpenHeadFile());
   disposables.push(new RevertAll());
+  disposables.push(new PickCommitMessage());
+  disposables.push(new RevertExplorer());
+  disposables.push(new SearchLogByRevision());
+  disposables.push(new SearchLogByText());
 }

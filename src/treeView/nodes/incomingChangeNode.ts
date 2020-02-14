@@ -1,4 +1,3 @@
-import * as fs from "original-fs";
 import * as path from "path";
 import { TreeItem, TreeItemCollapsibleState, Uri } from "vscode";
 import { Repository } from "../../repository";
@@ -47,7 +46,9 @@ export default class IncomingChangeNode implements BaseNode {
         return {
           command: "svn.openChangeHead",
           title: "Open Changes with HEAD",
-          arguments: [this.uri]
+          arguments: [
+            new Resource(this.uri, this.type, undefined, "none", true)
+          ]
         };
       case "deleted":
         return {
@@ -63,6 +64,9 @@ export default class IncomingChangeNode implements BaseNode {
             new Resource(this.uri, this.type, undefined, "none", true)
           ]
         };
+      default:
+        console.error(`No command returned for type ${this.type}`);
+        return;
     }
   }
 }

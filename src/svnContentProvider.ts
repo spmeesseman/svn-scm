@@ -10,11 +10,11 @@ import {
 import {
   ICache,
   ICacheRow,
-  IModelChangeEvent,
+  RepositoryChangeEvent,
   SvnUriAction
 } from "./common/types";
 import { debounce, throttle } from "./decorators";
-import { Model } from "./model";
+import { SourceControlManager } from "./source_control_manager";
 import { fromSvnUri } from "./uri";
 import {
   eventToPromise,
@@ -38,9 +38,12 @@ export class SvnContentProvider
   private cache: ICache = Object.create(null);
   private disposables: Disposable[] = [];
 
-  constructor(private model: Model) {
+  constructor(private sourceControlManager: SourceControlManager) {
     this.disposables.push(
-      model.onDidChangeRepository(this.onDidChangeRepository, this),
+      sourceControlManager.onDidChangeRepository(
+        this.onDidChangeRepository,
+        this
+      ),
       workspace.registerTextDocumentContentProvider("svn", this)
     );
 
@@ -48,7 +51,7 @@ export class SvnContentProvider
     this.disposables.push(toDisposable(() => clearInterval(interval)));
   }
 
-  private onDidChangeRepository({ repository }: IModelChangeEvent): void {
+  private onDidChangeRepository({ repository }: RepositoryChangeEvent): void {
     this.changedRepositoryRoots.add(repository.root);
     this.eventuallyFireChangeEvents();
   }
@@ -68,26 +71,35 @@ export class SvnContentProvider
       await eventToPromise(onDidFocusWindow);
     }
 
-    Object.keys(this.cache).forEach(key => {
+    // Don't check if no has repository changes
+    if (this.changedRepositoryRoots.size === 0) {
+      return;
+    }
+
+    // Use copy to allow new items in parallel
+    const roots = Array.from(this.changedRepositoryRoots);
+    this.changedRepositoryRoots.clear();
+
+    const keys = Object.keys(this.cache);
+
+    cacheLoop: for (const key of keys) {
       const uri = this.cache[key].uri;
       const fsPath = uri.fsPath;
 
-      for (const root of this.changedRepositoryRoots) {
+      for (const root of roots) {
         if (isDescendant(root, fsPath)) {
           this._onDidChange.fire(uri);
-          return;
+          continue cacheLoop;
         }
       }
-    });
-
-    this.changedRepositoryRoots.clear();
+    }
   }
 
   public async provideTextDocumentContent(uri: Uri): Promise<string> {
     try {
       const { fsPath, action, extra } = fromSvnUri(uri);
 
-      const repository = this.model.getRepository(fsPath);
+      const repository = this.sourceControlManager.getRepository(fsPath);
 
       if (!repository) {
         return "";
@@ -105,6 +117,12 @@ export class SvnContentProvider
       }
       if (action === SvnUriAction.LOG) {
         return await repository.plainLog();
+      }
+      if (action === SvnUriAction.LOG_REVISION && extra.revision) {
+        return await repository.plainLogByRevision(extra.revision);
+      }
+      if (action === SvnUriAction.LOG_SEARCH && extra.search) {
+        return await repository.plainLogByText(extra.search);
       }
       if (action === SvnUriAction.PATCH) {
         return await repository.patch([fsPath]);

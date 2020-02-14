@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
-    "target": "es6",
-    "lib": ["es2016"],
+    "target": "es2018",
     "module": "commonjs",
     "outDir": "./out",
     "typeRoots": ["./node_modules/@types"],
-    "strict": true,
-    "experimentalDecorators": true,
     "sourceMap": true,
-    "noImplicitThis": false
+    "experimentalDecorators": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "allowUnreachableCode": false,
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

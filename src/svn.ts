@@ -1,33 +1,20 @@
-/**
- * Load local first, after load the from VSCode modules
- * == 0 - is svn-scm/out/node_modules
- * == 1 - is svn-scm/node_modules
- * == 2 - is vscode folder
- * >= 3 - parent folders of svn-scm
- */
-import * as vscode from "vscode";
-module.paths.splice(2, 0, `${vscode.env.appRoot}/node_modules.asar`);
-module.paths.splice(2, 0, `${vscode.env.appRoot}/node_modules`); // VSCode < 1.21.0
-
 import * as cp from "child_process";
 import { EventEmitter } from "events";
-import * as iconv from "iconv-lite";
-import isUtf8 = require("is-utf8");
-import * as jschardet from "jschardet";
 import * as proc from "process";
 import { Readable } from "stream";
-import { Uri, workspace } from "vscode";
 import {
   ConstructorPolicy,
   ICpOptions,
   IExecutionResult,
   ISvnOptions
 } from "./common/types";
+import * as encodeUtil from "./encoding";
 import { configuration } from "./helpers/configuration";
 import { parseInfoXml } from "./infoParser";
 import SvnError from "./svnError";
 import { Repository } from "./svnRepository";
 import { dispose, IDisposable, toDisposable } from "./util";
+import { iconv } from "./vscodeModules";
 
 export const svnErrorCodes: { [key: string]: string } = {
   AuthorizationFailed: "E170001",
@@ -73,7 +60,6 @@ export function cpErrorHandler(
 
 export class Svn {
   private svnPath: string;
-  private version: string;
   private lastCwd: string = "";
 
   private _onOutput = new EventEmitter();
@@ -83,10 +69,9 @@ export class Svn {
 
   constructor(options: ISvnOptions) {
     this.svnPath = options.svnPath;
-    this.version = options.version;
   }
 
-  private logOutput(output: string): void {
+  public logOutput(output: string): void {
     this._onOutput.emit("log", output);
   }
 
@@ -114,11 +99,24 @@ export class Svn {
       args.push("--password", options.password);
     }
 
+    if (options.username || options.password) {
+      // Configuration format: FILE:SECTION:OPTION=[VALUE]
+      // Disable password store
+      args.push("--config-option", "config:auth:password-stores=");
+      // Disable store auth credentials
+      args.push("--config-option", "servers:global:store-auth-creds=no");
+    }
+
     // Force non interactive environment
     args.push("--non-interactive");
 
-    let encoding = options.encoding || "";
+    let encoding: string | undefined | null = options.encoding;
     delete options.encoding;
+
+    // SVN with '--xml' always return 'UTF-8', and jschardet detects this encoding: 'TIS-620'
+    if (args.includes("--xml")) {
+      encoding = "utf8";
+    }
 
     const defaults: cp.SpawnOptions = {
       env: proc.env
@@ -126,6 +124,12 @@ export class Svn {
     if (cwd) {
       defaults.cwd = cwd;
     }
+
+    defaults.env = Object.assign({}, proc.env, options.env || {}, {
+      LC_ALL: "en_US.UTF-8",
+      LANG: "en_US.UTF-8"
+    });
+
     const process = cp.spawn(this.svnPath, args, defaults);
 
     const disposables: IDisposable[] = [];
@@ -171,35 +175,20 @@ export class Svn {
 
     dispose(disposables);
 
-    // SVN with '--xml' always return 'UTF-8', and jschardet detects this encoding: 'TIS-620'
-    if (args.includes("--xml")) {
-      encoding = "utf8";
-    } else if (encoding === "") {
-      encoding = "utf8"; // Initial encoding
+    if (!encoding) {
+      encoding = encodeUtil.detectEncoding(stdout);
+    }
 
-      const defaultEncoding = configuration.get<string>("default.encoding");
-      if (defaultEncoding) {
-        if (!iconv.encodingExists(defaultEncoding)) {
-          this.logOutput(
-            "svn.default.encoding: Invalid Parameter: '" +
-              defaultEncoding +
-              "'.\n"
-          );
-        } else if (!isUtf8(stdout)) {
-          encoding = defaultEncoding;
-        }
-      } else {
-        jschardet.MacCyrillicModel.mTypicalPositiveRatio += 0.001;
+    // if not detected
+    if (!encoding) {
+      encoding = configuration.get<string>("default.encoding");
+    }
 
-        const encodingGuess = jschardet.detect(stdout);
-
-        if (
-          encodingGuess.confidence > 0.8 &&
-          iconv.encodingExists(encodingGuess.encoding)
-        ) {
-          encoding = encodingGuess.encoding;
-        }
+    if (!iconv.encodingExists(encoding)) {
+      if (encoding) {
+        console.warn(`SVN: The encoding "${encoding}" is invalid`);
       }
+      encoding = "utf8";
     }
 
     const decodedStdout = iconv.decode(stdout, encoding);

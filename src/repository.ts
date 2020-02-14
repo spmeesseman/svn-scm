@@ -23,9 +23,13 @@ import {
   Operation,
   RepositoryState,
   Status,
-  SvnUriAction
+  SvnDepth,
+  SvnUriAction,
+  ISvnPathChange,
+  IStoredAuth
 } from "./common/types";
 import { debounce, globalSequentialize, memoize, throttle } from "./decorators";
+import { exists } from "./fs";
 import { configuration } from "./helpers/configuration";
 import OperationsImpl from "./operationsImpl";
 import { PathNormalizer } from "./pathNormalizer";
@@ -47,6 +51,7 @@ import {
 } from "./util";
 import { match, matchAll } from "./util/globMatch";
 import { RepositoryFilesWatcher } from "./watchers/repositoryFilesWatcher";
+import { keytar } from "./vscodeModules";
 
 function shouldShowProgress(operation: Operation): boolean {
   switch (operation) {
@@ -76,6 +81,7 @@ export class Repository implements IRemoteRepository {
   public needCleanUp: boolean = false;
   private remoteChangedUpdateInterval?: NodeJS.Timer;
   private deletedUris: Uri[] = [];
+  private canSaveAuth: boolean = false;
 
   private lastPromptAuth?: Thenable<IAuth | undefined>;
 
@@ -131,7 +137,7 @@ export class Repository implements IRemoteRepository {
     this.changes.resourceStates = [];
     this.unversioned.resourceStates = [];
     this.conflicts.resourceStates = [];
-    this.changelists.forEach((group, changelist) => {
+    this.changelists.forEach((group, _changelist) => {
       group.resourceStates = [];
     });
 
@@ -356,10 +362,15 @@ export class Repository implements IRemoteRepository {
     }
 
     if (actionForDeletedFiles === "remove") {
-      return await this.removeFiles(uris.map(uri => uri.fsPath), false);
+      return this.removeFiles(
+        uris.map(uri => uri.fsPath),
+        false
+      );
     } else if (actionForDeletedFiles === "prompt") {
-      return await commands.executeCommand("svn.promptRemove", ...uris);
+      return commands.executeCommand("svn.promptRemove", ...uris);
     }
+
+    return;
   }
 
   @debounce(1000)
@@ -380,7 +391,7 @@ export class Repository implements IRemoteRepository {
     }
   }
 
-  private onFSChange(uri: Uri): void {
+  private onFSChange(_uri: Uri): void {
     const autorefresh = configuration.get<boolean>("autorefresh");
 
     if (!autorefresh) {
@@ -431,7 +442,6 @@ export class Repository implements IRemoteRepository {
   public async updateModelState(checkRemoteChanges: boolean = false) {
     const changes: any[] = [];
     const unversioned: any[] = [];
-    const external: any[] = [];
     const conflicts: any[] = [];
     const changelists: Map<string, Resource[]> = new Map();
     const remoteChanges: any[] = [];
@@ -448,7 +458,7 @@ export class Repository implements IRemoteRepository {
 
     const statuses =
       (await this.retryRun(async () => {
-        return await this.repository.getStatus({
+        return this.repository.getStatus({
           includeIgnored: true,
           includeExternals: combineExternal,
           checkRemoteChanges
@@ -589,15 +599,11 @@ export class Repository implements IRemoteRepository {
 
     const prevChangelistsSize = this.changelists.size;
 
-    this.changelists.forEach((group, changelist) => {
+    this.changelists.forEach((group, _changelist) => {
       group.resourceStates = [];
     });
 
     const counts = [this.changes, this.conflicts];
-
-    const ignoreOnCommitList = configuration.get<string[]>(
-      "sourceControl.ignoreOnCommit"
-    );
 
     const ignoreOnStatusCountList = configuration.get<string[]>(
       "sourceControl.ignoreOnStatusCount"
@@ -817,8 +823,10 @@ export class Repository implements IRemoteRepository {
     );
   }
 
-  public async revert(files: string[]) {
-    return this.run(Operation.Revert, () => this.repository.revert(files));
+  public async revert(files: string[], depth: keyof typeof SvnDepth) {
+    return this.run(Operation.Revert, () =>
+      this.repository.revert(files, depth)
+    );
   }
 
   public async info(path: string) {
@@ -845,6 +853,18 @@ export class Repository implements IRemoteRepository {
     return this.run(Operation.Log, () => this.repository.plainLog());
   }
 
+  public async plainLogByRevision(revision: number) {
+    return this.run(Operation.Log, () =>
+      this.repository.plainLogByRevision(revision)
+    );
+  }
+
+  public async plainLogByText(search: string) {
+    return this.run(Operation.Log, () =>
+      this.repository.plainLogByText(search)
+    );
+  }
+
   public async log(
     rfrom: string,
     rto: string,
@@ -860,10 +880,20 @@ export class Repository implements IRemoteRepository {
     return this.run(Operation.CleanUp, () => this.repository.cleanup());
   }
 
+  public async removeUnversioned() {
+    return this.run(Operation.CleanUp, () =>
+      this.repository.removeUnversioned()
+    );
+  }
+
   public async getInfo(path: string, revision?: string): Promise<ISvnInfo> {
     return this.run(Operation.Info, () =>
       this.repository.getInfo(path, revision, true)
     );
+  }
+
+  public async getChanges(): Promise<ISvnPathChange[]> {
+    return this.run(Operation.Changes, () => this.repository.getChanges());
   }
 
   public async finishCheckout() {
@@ -892,6 +922,39 @@ export class Repository implements IRemoteRepository {
     return new PathNormalizer(this.repository.info);
   }
 
+  protected getCredentialServiceName() {
+    let key = "vscode.svn-scm";
+
+    const info = this.repository.info;
+
+    if (info.repository && info.repository.root) {
+      key += ":" + info.repository.root;
+    } else if (info.url) {
+      key += ":" + info.url;
+    }
+
+    return key;
+  }
+
+  public async loadStoredAuths(): Promise<Array<IStoredAuth>> {
+    // Prevent multiple prompts for auth
+    if (this.lastPromptAuth) {
+      await this.lastPromptAuth;
+    }
+    return keytar.findCredentials(this.getCredentialServiceName());
+  }
+
+  public async saveAuth(): Promise<void> {
+    if (this.canSaveAuth && this.username && this.password) {
+      await keytar.setPassword(
+        this.getCredentialServiceName(),
+        this.username,
+        this.password
+      );
+      this.canSaveAuth = false;
+    }
+  }
+
   public async promptAuth(): Promise<IAuth | undefined> {
     // Prevent multiple prompts for auth
     if (this.lastPromptAuth) {
@@ -904,6 +967,7 @@ export class Repository implements IRemoteRepository {
     if (result) {
       this.username = result.username;
       this.password = result.password;
+      this.canSaveAuth = true;
     }
 
     this.lastPromptAuth = undefined;
@@ -954,6 +1018,11 @@ export class Repository implements IRemoteRepository {
           this.state = RepositoryState.Disposed;
         }
 
+        const rootExists = await exists(this.workspaceRoot);
+        if (!rootExists) {
+          await commands.executeCommand("svn.close", this);
+        }
+
         throw err;
       } finally {
         this._operations.end(operation);
@@ -970,11 +1039,14 @@ export class Repository implements IRemoteRepository {
     runOperation: () => Promise<T> = () => Promise.resolve<any>(null)
   ): Promise<T> {
     let attempt = 0;
+    let accounts: IStoredAuth[] = [];
 
     while (true) {
       try {
         attempt++;
-        return await runOperation();
+        const result = await runOperation();
+        this.saveAuth();
+        return result;
       } catch (err) {
         if (
           err.svnErrorCode === svnErrorCodes.RepositoryIsLocked &&
@@ -984,7 +1056,22 @@ export class Repository implements IRemoteRepository {
           await timeout(Math.pow(attempt, 2) * 50);
         } else if (
           err.svnErrorCode === svnErrorCodes.AuthorizationFailed &&
-          attempt <= 3
+          attempt <= 1 + accounts.length
+        ) {
+          // First attempt load all stored auths
+          if (attempt === 1) {
+            accounts = await this.loadStoredAuths();
+          }
+
+          // each attempt, try a different account
+          const index = accounts.length - 1;
+          if (typeof accounts[index] !== "undefined") {
+            this.username = accounts[index].account;
+            this.password = accounts[index].password;
+          }
+        } else if (
+          err.svnErrorCode === svnErrorCodes.AuthorizationFailed &&
+          attempt <= 3 + accounts.length
         ) {
           const result = await this.promptAuth();
           if (!result) {
