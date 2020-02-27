@@ -9,7 +9,7 @@
 
 [![Dependencies Status](https://david-dm.org/JohnstonCode/svn-scm/status.svg)](https://david-dm.org/JohnstonCode/svn-scm)
 [![DevDependencies Status](https://david-dm.org/JohnstonCode/svn-scm/dev-status.svg)](https://david-dm.org/JohnstonCode/svn-scm?type=dev)
-[![Greenkeeper badge](https://badges.greenkeeper.io/JohnstonCode/svn-scm.svg)](https://greenkeeper.io/)
+[![Dependabot badge](https://badgen.net/dependabot/JohnstonCode/svn-scm/?icon=dependabot)](https://dependabot.com/)
 
 [![Known Vulnerabilities](https://snyk.io/test/github/JohnstonCode/svn-scm/badge.svg)](https://snyk.io/test/github/JohnstonCode/svn-scm)
 
@@ -69,6 +69,9 @@ Here are all of the extension settings with their default values. To change any 
   // Whether auto refreshing is enabled
   "svn.autorefresh": true,
 
+  // Select all files when commit changes
+  "svn.commit.changes.selectedAll": true,
+
   // Set file to status resolved after fix conflicts
   "svn.conflicts.autoResolve": null,
 
@@ -95,6 +98,15 @@ Here are all of the extension settings with their default values. To change any 
 
   // Whether svn is enabled
   "svn.enabled": true,
+
+  // Try the experimental encoding detection
+  "svn.experimental.detect_encoding": null,
+
+  // Priority of encoding
+  "svn.experimental.encoding_priority": [],
+
+  // Url for the gravitar icon using the <AUTHOR>, <AUTHOR_MD5> and <SIZE> placeholders
+  "svn.gravatar.icon_url": "https://www.gravatar.com/avatar/<AUTHOR_MD5>.jpg?s=<SIZE>&d=robohash",
 
   // Use garavatar icons in log viewers
   "svn.gravatars.enabled": true,

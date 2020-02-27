@@ -1,4 +1,6 @@
 import { jschardet } from "./vscodeModules";
+import * as chardet from "chardet";
+import { configuration } from "./helpers/configuration";
 
 if (jschardet.Constants) {
   jschardet.Constants.MINIMUM_THRESHOLD = 0.2;
@@ -44,6 +46,10 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
   big5: "cp950"
 };
 
+function normaliseEncodingName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
 export function detectEncoding(buffer: Buffer): string | null {
   const result = detectEncodingByBOM(buffer);
 
@@ -51,7 +57,33 @@ export function detectEncoding(buffer: Buffer): string | null {
     return result;
   }
 
-  const detected = jschardet.detect(buffer);
+  const experimental = configuration.get<boolean>(
+    "experimental.detect_encoding",
+    false
+  );
+  if (experimental) {
+    const detected = chardet.detectAll(buffer);
+    const encodingPriorities = configuration.get<string[]>(
+      "experimental.encoding_priority",
+      []
+    );
+
+    if (!detected) {
+      return null;
+    }
+
+    for (const pri of encodingPriorities) {
+      for (const det of detected) {
+        if (normaliseEncodingName(pri) === normaliseEncodingName(det.name)) {
+          return normaliseEncodingName(det.name);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  const detected = jschardet.detect(buffer.slice(0, 512 * 128)); // ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 
   if (!detected || !detected.encoding || detected.confidence < 0.8) {
     return null;
@@ -65,9 +97,7 @@ export function detectEncoding(buffer: Buffer): string | null {
     return null;
   }
 
-  const normalizedEncodingName = encoding
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toLowerCase();
+  const normalizedEncodingName = normaliseEncodingName(encoding);
   const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
 
   return mapped || normalizedEncodingName;

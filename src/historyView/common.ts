@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
-import { formatDistanceToNow } from "date-fns";
 import * as path from "path";
+import * as dayjs from "dayjs";
+import * as relativeTime from "dayjs/plugin/relativeTime";
 import {
   commands,
   env,
@@ -14,7 +15,9 @@ import { exists, lstat } from "../fs";
 import { configuration } from "../helpers/configuration";
 import { IRemoteRepository } from "../remoteRepository";
 import { SvnRI } from "../svnRI";
-import { createTempSvnRevisionFile } from "../tempFiles";
+import { tempSvnFs } from "../temp_svn_fs";
+
+dayjs.extend(relativeTime);
 
 export enum LogTreeItemKind {
   Repo = 1,
@@ -211,9 +214,13 @@ export function getCommitIcon(
     return gravatar;
   }
 
-  gravatar = Uri.parse(
-    `https://www.gravatar.com/avatar/${md5(author)}.jpg?s=${size}&d=robohash`
-  );
+  const gravitarUrl = configuration
+    .get("gravatar.icon_url", "")
+    .replace("<AUTHOR>", author)
+    .replace("<AUTHOR_MD5>", md5(author))
+    .replace("<SIZE>", size.toString());
+
+  gravatar = Uri.parse(gravitarUrl);
 
   gravatarCache.set(author, gravatar);
 
@@ -221,9 +228,7 @@ export function getCommitIcon(
 }
 
 export function getCommitDescription(commit: ISvnLogEntry): string {
-  const relativeDate = formatDistanceToNow(Date.parse(commit.date), {
-    addSuffix: true
-  });
+  const relativeDate = dayjs(commit.date).fromNow();
   return `r${commit.revision}, ${relativeDate} by ${commit.author}`;
 }
 
@@ -270,7 +275,7 @@ async function downloadFile(
     window.showErrorMessage("Failed to open path");
     throw e;
   }
-  return createTempSvnRevisionFile(arg, revision, out);
+  return tempSvnFs.createTempSvnRevisionFile(arg, revision, out);
 }
 
 export async function openDiff(
@@ -301,7 +306,7 @@ export async function openFileRemote(
     window.showErrorMessage("Failed to open path");
     return;
   }
-  const localUri = await createTempSvnRevisionFile(arg, against, out);
+  const localUri = await tempSvnFs.createTempSvnRevisionFile(arg, against, out);
   const opts: TextDocumentShowOptions = {
     preview: true
   };

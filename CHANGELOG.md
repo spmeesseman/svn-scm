@@ -1,3 +1,66 @@
+## [2.10.3](https://github.com/JohnstonCode/svn-scm/compare/v2.10.2...v2.10.3) (2020-02-21)
+
+
+### Bug Fixes
+
+* temp svn fs changed output content type to Buffer to preserve encoding-specific characters ([#836](https://github.com/JohnstonCode/svn-scm/issues/836)) ([f076e64](https://github.com/JohnstonCode/svn-scm/commit/f076e6465dd43a54191154b228e89d08a36fd142))
+
+## [2.10.2](https://github.com/JohnstonCode/svn-scm/compare/v2.10.1...v2.10.2) (2020-02-21)
+
+
+### Bug Fixes
+
+* added experimental encoding priority list ([#835](https://github.com/JohnstonCode/svn-scm/issues/835)) ([706dbc1](https://github.com/JohnstonCode/svn-scm/commit/706dbc19957bdae7634b7b72120be6f85ba74ad3))
+
+## [2.10.1](https://github.com/JohnstonCode/svn-scm/compare/v2.10.0...v2.10.1) (2020-02-20)
+
+
+### Bug Fixes
+
+* use experimental detect encoding with svn cat ([#832](https://github.com/JohnstonCode/svn-scm/issues/832)) ([217a981](https://github.com/JohnstonCode/svn-scm/commit/217a9819011243481c1bcb82b604e12f997d08c9))
+
+# [2.10.0](https://github.com/JohnstonCode/svn-scm/compare/v2.9.1...v2.10.0) (2020-02-19)
+
+
+### Features
+
+* added new experimental encoding detection ([#831](https://github.com/JohnstonCode/svn-scm/issues/831)) ([34edcca](https://github.com/JohnstonCode/svn-scm/commit/34edccaadbb2a71ba555127ba839d84bde15f523))
+
+## [2.9.1](https://github.com/JohnstonCode/svn-scm/compare/v2.9.0...v2.9.1) (2020-02-19)
+
+
+### Bug Fixes
+
+* scanning root ([#828](https://github.com/JohnstonCode/svn-scm/issues/828)) ([#829](https://github.com/JohnstonCode/svn-scm/issues/829)) ([5cf1387](https://github.com/JohnstonCode/svn-scm/commit/5cf138703bdb046781b0311e0e11e1ec84e49a0e))
+
+# [2.9.0](https://github.com/JohnstonCode/svn-scm/compare/v2.8.0...v2.9.0) (2020-02-19)
+
+
+### Features
+
+* Allow select files to commit when choose "changes" (close [#472](https://github.com/JohnstonCode/svn-scm/issues/472)) ([#811](https://github.com/JohnstonCode/svn-scm/issues/811)) ([ba4e806](https://github.com/JohnstonCode/svn-scm/commit/ba4e8063e18eff34d0aa68574ecf011d9ac1b7ab))
+
+# [2.8.0](https://github.com/JohnstonCode/svn-scm/compare/v2.7.3...v2.8.0) (2020-02-18)
+
+
+### Features
+
+* custom user commit icons ([#825](https://github.com/JohnstonCode/svn-scm/issues/825)) ([20ea925](https://github.com/JohnstonCode/svn-scm/commit/20ea925eae54888db602e486dd793294b05e0d1d))
+
+## [2.7.3](https://github.com/JohnstonCode/svn-scm/compare/v2.7.2...v2.7.3) (2020-02-18)
+
+
+### Bug Fixes
+
+* clean up temp svn files when closed ([#819](https://github.com/JohnstonCode/svn-scm/issues/819)) ([32b1887](https://github.com/JohnstonCode/svn-scm/commit/32b188732cf4a96926db017a5c95edcb9f09614b))
+
+## [2.7.2](https://github.com/JohnstonCode/svn-scm/compare/v2.7.1...v2.7.2) (2020-02-17)
+
+
+### Bug Fixes
+
+* history view now uses temp svn fs ([#814](https://github.com/JohnstonCode/svn-scm/issues/814)) ([c31eb21](https://github.com/JohnstonCode/svn-scm/commit/c31eb21ba1a06b81713120a1d915c484591c0596))
+
 ## [2.7.1](https://github.com/JohnstonCode/svn-scm/compare/v2.7.0...v2.7.1) (2020-02-14)
 
 
